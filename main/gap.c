@@ -31,20 +31,42 @@ static QueueHandle_t cmd_reg_queue = NULL;
 static uint16_t count = SPP_IDX_NB;
 QueueHandle_t spp_uart_queue = NULL;
 
+///////////////////////////////////////////////////////////////////////////////////
+// DECLARATION LOCAL FUNCTION
+///////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief Handler for GATTC profile events.
+ *
+ * @param event      Event type.
+ * @param gattc_if   GATTC interface.
+ * @param param      Pointer to the event parameters.
+ */
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 
-/* One gatt-based profile one app_id and one gattc_if, this array will store the gattc_if returned by ESP_GATTS_REG_EVT */
+///////////////////////////////////////////////////////////////////////////////////
+// LOCAL DATA
+///////////////////////////////////////////////////////////////////////////////////
+/**
+ * @brief Array to store GATT client profile instances.
+ *
+ * One GATT-based profile corresponds to one app_id and one gattc_if.
+ * This array will store the gattc_if returned by ESP_GATTS_REG_EVT.
+ */
 static struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
     [APP_ID] = {
         .gattc_cb = gattc_profile_event_handler,
-        .gattc_if = ESP_GATT_IF_NONE,       /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
+        .gattc_if = ESP_GATT_IF_NONE,       /**< Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
     },
 };
 
 static esp_ble_gap_cb_param_t scan_rst;
 
-static const char device_name[] = "ESP_SPP_SERVER";
+static const char device_name[] = "PM_SERVER";
 
+/**
+ * @brief BLE scan parameters.
+ */
 static esp_ble_scan_params_t ble_scan_params = {
     .scan_type              = BLE_SCAN_TYPE_ACTIVE,
     .own_addr_type          = BLE_ADDR_TYPE_PUBLIC,
@@ -56,11 +78,21 @@ static esp_ble_scan_params_t ble_scan_params = {
 
 static uint16_t spp_gattc_if = 0xff;
 
+/**
+ * @brief SPP service UUID definition.
+ */
 static esp_bt_uuid_t spp_service_uuid = {
     .len  = ESP_UUID_LEN_16,
     .uuid = {.uuid16 = ESP_GATT_SPP_SERVICE_UUID,},
 };
 
+///////////////////////////////////////////////////////////////////////////////////
+// LOCAL FUNCTIONS
+///////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief Free GATTC service database and reset related variables.
+ */
 static void free_gattc_srv_db(void)
 {
     is_con = false;
@@ -79,6 +111,11 @@ static void free_gattc_srv_db(void)
     }
 }
 
+/**
+ * @brief Handler for GATTC notification events.
+ *
+ * @param p_data Pointer to the GATTC notification event data.
+ */
 static void notify_event_handler(esp_ble_gattc_cb_param_t * p_data)
 {
     uint8_t handle = 0;
@@ -162,6 +199,13 @@ static void notify_event_handler(esp_ble_gattc_cb_param_t * p_data)
     }
 }
 
+/**
+ * @brief Handler for GATTC profile events.
+ *
+ * @param event      Event type.
+ * @param gattc_if   GATTC interface.
+ * @param param      Pointer to the event parameters.
+ */
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
 {
     esp_ble_gattc_cb_param_t *p_data = (esp_ble_gattc_cb_param_t *)param;
@@ -277,6 +321,11 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
 }
 
+/**
+ * @brief UART task to handle UART events.
+ *
+ * @param pvParameters Task parameters.
+ */
 static void uart_task(void *pvParameters)
 {
     uart_event_t event;
@@ -313,6 +362,11 @@ static void uart_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+/**
+ * @brief SPP client registration task to handle GATT client registration.
+ *
+ * @param arg Task parameters.
+ */
 static void spp_client_reg_task(void* arg)
 {
     uint16_t cmd_id;
@@ -336,6 +390,15 @@ static void spp_client_reg_task(void* arg)
 // GLOBAL FUNCTIONS
 ///////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * @brief Callback function for handling Bluetooth Low Energy (BLE) GAP events.
+ *
+ * This function is invoked in response to various BLE GAP events. It switches
+ * on the event type and performs corresponding actions or processing.
+ *
+ * @param event   The type of BLE GAP event.
+ * @param param   A pointer to the parameters associated with the event.
+ */
 void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
     uint8_t *adv_name = NULL;
@@ -559,6 +622,17 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
     }
 }
 
+/**
+ * @brief Callback function for handling Bluetooth Low Energy (BLE) GATT client (GATTC) events.
+ *
+ * This function is invoked in response to various BLE GATTC events. It logs event information,
+ * handles registration events to associate the GATTC interface with each profile, and calls
+ * the appropriate profile's callback function based on the GATTC interface and event type.
+ *
+ * @param event     The type of GATTC event.
+ * @param gattc_if  The GATTC interface associated with the event.
+ * @param param     A pointer to the parameters associated with the event.
+ */
 void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
 {
     ESP_LOGI(GATTC_TAG, "EVT %d, gattc if %d", event, gattc_if);
@@ -587,7 +661,13 @@ void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_ga
     } while (0);
 }
 
-
+/**
+ * @brief Initialize the Serial Port Profile (SPP) UART communication.
+ *
+ * This function sets up the necessary configurations for UART communication,
+ * creates a command registration queue, and spawns tasks for SPP client registration
+ * and UART communication.
+ */
 void spp_uart_init(void)
 {
     cmd_reg_queue = xQueueCreate(10, sizeof(uint32_t));

@@ -38,31 +38,37 @@
 #define ESP_GATT_SPP_SERVICE_UUID   0xABF0
 #define SCAN_ALL_THE_TIME 0
 
+/**
+ * @brief Structure representing a GATT client profile instance.
+ */
 struct gattc_profile_inst {
-    esp_gattc_cb_t gattc_cb;
-    uint16_t gattc_if;
-    uint16_t app_id;
-    uint16_t conn_id;
-    uint16_t service_start_handle;
-    uint16_t service_end_handle;
-    uint16_t char_handle;
-    esp_bd_addr_t remote_bda;
+    esp_gattc_cb_t gattc_cb;         /**< GATT client callback. */
+    uint16_t gattc_if;               /**< GATT client interface. */
+    uint16_t app_id;                 /**< Application ID. */
+    uint16_t conn_id;                /**< Connection ID. */
+    uint16_t service_start_handle;   /**< Service start handle. */
+    uint16_t service_end_handle;     /**< Service end handle. */
+    uint16_t char_handle;            /**< Characteristic handle. */
+    esp_bd_addr_t remote_bda;        /**< Remote Bluetooth device address. */
 };
 
-enum{
-    SPP_IDX_SVC,
+/**
+ * @brief Enumeration representing the indices of attributes in the GATT server profile.
+ */
+enum {
+    SPP_IDX_SVC,               /**< Service index. */
 
-    SPP_IDX_SPP_DATA_RECV_VAL,
+    SPP_IDX_SPP_DATA_RECV_VAL, /**< Data receive characteristic value index. */
 
-    SPP_IDX_SPP_DATA_NTY_VAL,
-    SPP_IDX_SPP_DATA_NTF_CFG,
+    SPP_IDX_SPP_DATA_NTY_VAL,  /**< Data notify characteristic value index. */
+    SPP_IDX_SPP_DATA_NTF_CFG,  /**< Data notify characteristic configuration index. */
 
-    SPP_IDX_SPP_COMMAND_VAL,
+    SPP_IDX_SPP_COMMAND_VAL,   /**< Command characteristic value index. */
 
-    SPP_IDX_SPP_STATUS_VAL,
-    SPP_IDX_SPP_STATUS_CFG,
+    SPP_IDX_SPP_STATUS_VAL,    /**< Status characteristic value index. */
+    SPP_IDX_SPP_STATUS_CFG,    /**< Status characteristic configuration index. */
 
-    SPP_IDX_NB,
+    SPP_IDX_NB,                /**< Total number of indices. */
 };
 
 #endif /* BLE_SPP_CLIENT_H */

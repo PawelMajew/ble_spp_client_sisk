@@ -13,7 +13,6 @@
 
 #include "ble_spp_client.h"
 #include "gap.h"
-// #include "gatt.h"
 
 void app_main(void)
 {
