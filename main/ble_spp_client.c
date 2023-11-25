@@ -13,6 +13,7 @@
 
 #include "ble_spp_client.h"
 #include "gap.h"
+#include "gatt.h"
 
 void app_main(void)
 {
@@ -76,7 +77,7 @@ void app_main(void)
     }
 
     // Registering a function that supports gatt.
-    error = esp_ble_gattc_register_callback(esp_gattc_cb);
+    error = esp_ble_gattc_register_callback(esp_gattc_handle);
     if (error == ESP_OK)
     {
         ESP_LOGE(ESP_MAIN_TAG, "Gatt handle registration successful");
@@ -87,7 +88,7 @@ void app_main(void)
     }
 
     // Registers a gap handling function.
-    error = esp_ble_gap_register_callback(esp_gap_cb);
+    error = esp_ble_gap_register_callback(esp_gap_handle);
     if (error == ESP_OK)
     {
         ESP_LOGE(ESP_MAIN_TAG, "Gap handle registration successful");

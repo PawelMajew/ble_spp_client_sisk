@@ -38,6 +38,9 @@
 #define ESP_GATT_SPP_SERVICE_UUID   0xABF0
 #define SCAN_ALL_THE_TIME 0
 
+extern esp_bd_addr_t address_pm;
+extern uint16_t esp_if_pm;
+extern bool is_con;
 /**
  * @brief Structure representing a GATT client profile instance.
  */
