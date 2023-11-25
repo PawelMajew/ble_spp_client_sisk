@@ -13,6 +13,8 @@
 
 #include "gap.h"
 
+esp_bd_addr_t address_pm;
+uint16_t esp_if_pm;
 ///////////////////////////////////////////////////////////////////////////////////
 // LOCAL DATA
 ///////////////////////////////////////////////////////////////////////////////////
@@ -218,11 +220,11 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_CONNECT_EVT:
         ESP_LOGI(GAP_TAG, "ESP_GATTC_CONNECT_EVT: conn_id=%d, gatt_if = %d", spp_conn_id, gattc_if);
         ESP_LOGI(GAP_TAG, "REMOTE BDA:");
-        esp_log_buffer_hex(GAP_TAG, gl_profile_tab[APP_ID].remote_bda, sizeof(esp_bd_addr_t));
+        esp_log_buffer_hex(GAP_TAG, address_pm, sizeof(esp_bd_addr_t));
         spp_gattc_if = gattc_if;
         is_con = true;
         spp_conn_id = p_data->connect.conn_id;
-        memcpy(gl_profile_tab[APP_ID].remote_bda, p_data->connect.remote_bda, sizeof(esp_bd_addr_t));
+        memcpy(&address_pm, p_data->connect.remote_bda, sizeof(esp_bd_addr_t));
         esp_ble_gattc_search_service(spp_gattc_if, spp_conn_id, &spp_service_uuid);
         break;
     case ESP_GATTC_DISCONNECT_EVT:
@@ -376,10 +378,10 @@ static void spp_client_reg_task(void* arg)
             if(db != NULL) {
                 if(cmd_id == SPP_IDX_SPP_DATA_NTY_VAL){
                     ESP_LOGI(GATTC_TAG,"Index = %d,UUID = 0x%04x, handle = %d", cmd_id, (db+SPP_IDX_SPP_DATA_NTY_VAL)->uuid.uuid.uuid16, (db+SPP_IDX_SPP_DATA_NTY_VAL)->attribute_handle);
-                    esp_ble_gattc_register_for_notify(spp_gattc_if, gl_profile_tab[APP_ID].remote_bda, (db+SPP_IDX_SPP_DATA_NTY_VAL)->attribute_handle);
+                    esp_ble_gattc_register_for_notify(spp_gattc_if, address_pm, (db+SPP_IDX_SPP_DATA_NTY_VAL)->attribute_handle);
                 }else if(cmd_id == SPP_IDX_SPP_STATUS_VAL){
                     ESP_LOGI(GATTC_TAG,"Index = %d,UUID = 0x%04x, handle = %d", cmd_id, (db+SPP_IDX_SPP_STATUS_VAL)->uuid.uuid.uuid16, (db+SPP_IDX_SPP_STATUS_VAL)->attribute_handle);
-                    esp_ble_gattc_register_for_notify(spp_gattc_if, gl_profile_tab[APP_ID].remote_bda, (db+SPP_IDX_SPP_STATUS_VAL)->attribute_handle);
+                    esp_ble_gattc_register_for_notify(spp_gattc_if, address_pm, (db+SPP_IDX_SPP_STATUS_VAL)->attribute_handle);
                 }
             }
         }
@@ -521,7 +523,7 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
         }
         if (is_con == false) {
             ESP_LOGI(GAP_TAG, "Connect to the remote device.");
-            esp_ble_gattc_open(gl_profile_tab[APP_ID].gattc_if, scan_rst.scan_rst.bda, scan_rst.scan_rst.ble_addr_type, true);
+            esp_ble_gattc_open(esp_if_pm, scan_rst.scan_rst.bda, scan_rst.scan_rst.ble_addr_type, true);
         }        
         break;
     case ESP_GAP_BLE_SET_STATIC_RAND_ADDR_EVT:
@@ -637,9 +639,31 @@ void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_ga
 {
     ESP_LOGI(GATTC_TAG, "EVT %d, gattc if %d", event, gattc_if);
 
+    switch (event)
+    {
+    case :
+        break;
+    case :
+        break;
+    case :
+        break;
+    case :
+        break;
+    case :
+        break;
+    case :
+        break;
+    case :
+        break;
+    case :
+        break;    
+    default:
+        break;
+    }
     /* If event is register event, store the gattc_if for each profile */
     if (event == ESP_GATTC_REG_EVT) {
         if (param->reg.status == ESP_GATT_OK) {
+            esp_if_pm = gattc_if;
             gl_profile_tab[param->reg.app_id].gattc_if = gattc_if;
         } else {
             ESP_LOGI(GATTC_TAG, "Reg app failed, app_id %04x, status %d", param->reg.app_id, param->reg.status);
