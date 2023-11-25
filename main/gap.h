@@ -25,6 +25,7 @@
 
 extern esp_bd_addr_t address_pm;
 extern uint16_t esp_if_pm;
+
 ///////////////////////////////////////////////////////////////////////////////////
 // GLOBAL FUNCTIONS
 ///////////////////////////////////////////////////////////////////////////////////
@@ -44,8 +45,7 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
  * @brief Callback function for handling Bluetooth Low Energy (BLE) GATT client (GATTC) events.
  *
  * This function is invoked in response to various BLE GATTC events. It logs event information,
- * handles registration events to associate the GATTC interface with each profile, and calls
- * the appropriate profile's callback function based on the GATTC interface and event type.
+ * processes different GATTC events, and performs corresponding actions based on the event type.
  *
  * @param event     The type of GATTC event.
  * @param gattc_if  The GATTC interface associated with the event.

@@ -34,33 +34,8 @@ static uint16_t count = SPP_IDX_NB;
 QueueHandle_t spp_uart_queue = NULL;
 
 ///////////////////////////////////////////////////////////////////////////////////
-// DECLARATION LOCAL FUNCTION
-///////////////////////////////////////////////////////////////////////////////////
-
-/**
- * @brief Handler for GATTC profile events.
- *
- * @param event      Event type.
- * @param gattc_if   GATTC interface.
- * @param param      Pointer to the event parameters.
- */
-static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
-
-///////////////////////////////////////////////////////////////////////////////////
 // LOCAL DATA
 ///////////////////////////////////////////////////////////////////////////////////
-/**
- * @brief Array to store GATT client profile instances.
- *
- * One GATT-based profile corresponds to one app_id and one gattc_if.
- * This array will store the gattc_if returned by ESP_GATTS_REG_EVT.
- */
-static struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
-    [APP_ID] = {
-        .gattc_cb = gattc_profile_event_handler,
-        .gattc_if = ESP_GATT_IF_NONE,       /**< Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
-    },
-};
 
 static esp_ble_gap_cb_param_t scan_rst;
 
@@ -198,128 +173,6 @@ static void notify_event_handler(esp_ble_gattc_cb_param_t * p_data)
     else
     {
         esp_log_buffer_char(GAP_TAG, (char *)p_data->notify.value, p_data->notify.value_len);
-    }
-}
-
-/**
- * @brief Handler for GATTC profile events.
- *
- * @param event      Event type.
- * @param gattc_if   GATTC interface.
- * @param param      Pointer to the event parameters.
- */
-static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
-{
-    esp_ble_gattc_cb_param_t *p_data = (esp_ble_gattc_cb_param_t *)param;
-
-    switch (event) {
-    case ESP_GATTC_REG_EVT:
-        ESP_LOGI(GAP_TAG, "REG EVT, set scan params");
-        esp_ble_gap_set_scan_params(&ble_scan_params);
-        break;
-    case ESP_GATTC_CONNECT_EVT:
-        ESP_LOGI(GAP_TAG, "ESP_GATTC_CONNECT_EVT: conn_id=%d, gatt_if = %d", spp_conn_id, gattc_if);
-        ESP_LOGI(GAP_TAG, "REMOTE BDA:");
-        esp_log_buffer_hex(GAP_TAG, address_pm, sizeof(esp_bd_addr_t));
-        spp_gattc_if = gattc_if;
-        is_con = true;
-        spp_conn_id = p_data->connect.conn_id;
-        memcpy(&address_pm, p_data->connect.remote_bda, sizeof(esp_bd_addr_t));
-        esp_ble_gattc_search_service(spp_gattc_if, spp_conn_id, &spp_service_uuid);
-        break;
-    case ESP_GATTC_DISCONNECT_EVT:
-        ESP_LOGI(GAP_TAG, "disconnect");
-        free_gattc_srv_db();
-        esp_ble_gap_start_scanning(SCAN_ALL_THE_TIME);
-        break;
-    case ESP_GATTC_SEARCH_RES_EVT:
-        ESP_LOGI(GAP_TAG, "ESP_GATTC_SEARCH_RES_EVT: start_handle = %d, end_handle = %d, UUID:0x%04x",p_data->search_res.start_handle,p_data->search_res.end_handle,p_data->search_res.srvc_id.uuid.uuid.uuid16);
-        spp_srv_start_handle = p_data->search_res.start_handle;
-        spp_srv_end_handle = p_data->search_res.end_handle;
-        break;
-    case ESP_GATTC_SEARCH_CMPL_EVT:
-        ESP_LOGI(GAP_TAG, "SEARCH_CMPL: conn_id = %x, status %d", spp_conn_id, p_data->search_cmpl.status);
-        esp_ble_gattc_send_mtu_req(gattc_if, spp_conn_id);
-        break;
-    case ESP_GATTC_REG_FOR_NOTIFY_EVT:
-        ESP_LOGI(GAP_TAG,"Index = %d,status = %d,handle = %d",cmd, p_data->reg_for_notify.status, p_data->reg_for_notify.handle);
-        if(p_data->reg_for_notify.status != ESP_GATT_OK){
-            ESP_LOGE(GAP_TAG, "ESP_GATTC_REG_FOR_NOTIFY_EVT, status = %d", p_data->reg_for_notify.status);
-            break;
-        }
-        uint16_t notify_en = 1;
-        esp_ble_gattc_write_char_descr(
-                spp_gattc_if,
-                spp_conn_id,
-                (db+cmd+1)->attribute_handle,
-                sizeof(notify_en),
-                (uint8_t *)&notify_en,
-                ESP_GATT_WRITE_TYPE_RSP,
-                ESP_GATT_AUTH_REQ_NONE);
-
-        break;
-    case ESP_GATTC_NOTIFY_EVT:
-        ESP_LOGI(GAP_TAG,"ESP_GATTC_NOTIFY_EVT");
-        notify_event_handler(p_data);
-        break;
-    case ESP_GATTC_READ_CHAR_EVT:
-        ESP_LOGI(GAP_TAG,"ESP_GATTC_READ_CHAR_EVT");
-        break;
-    case ESP_GATTC_WRITE_CHAR_EVT:
-        ESP_LOGI(GAP_TAG,"ESP_GATTC_WRITE_CHAR_EVT:status = %d,handle = %d", param->write.status, param->write.handle);
-        if(param->write.status != ESP_GATT_OK)
-        {
-            ESP_LOGE(GAP_TAG, "ESP_GATTC_WRITE_CHAR_EVT, error status = %d", p_data->write.status);
-            break;
-        }
-        break;
-    case ESP_GATTC_PREP_WRITE_EVT:
-        break;
-    case ESP_GATTC_EXEC_EVT:
-        break;
-    case ESP_GATTC_WRITE_DESCR_EVT:
-        ESP_LOGI(GAP_TAG,"ESP_GATTC_WRITE_DESCR_EVT: status =%d,handle = %d", p_data->write.status, p_data->write.handle);
-        if(p_data->write.status != ESP_GATT_OK)
-        {
-            ESP_LOGE(GAP_TAG, "ESP_GATTC_WRITE_DESCR_EVT, error status = %d", p_data->write.status);
-            break;
-        }
-        switch(cmd)
-        {
-        case SPP_IDX_SPP_DATA_NTY_VAL:
-            cmd = SPP_IDX_SPP_STATUS_VAL;
-            xQueueSend(cmd_reg_queue, &cmd, 10 / portTICK_PERIOD_MS);
-            break;
-        case SPP_IDX_SPP_STATUS_VAL:
-            break;
-        default:
-            break;
-        };
-        break;
-    case ESP_GATTC_CFG_MTU_EVT:
-        if(p_data->cfg_mtu.status != ESP_OK){
-            break;
-        }
-        ESP_LOGI(GAP_TAG,"+MTU:%d", p_data->cfg_mtu.mtu);
-        spp_mtu_size = p_data->cfg_mtu.mtu;
-
-        db = (esp_gattc_db_elem_t *)malloc(count*sizeof(esp_gattc_db_elem_t));
-        if(db == NULL){
-            break;
-        }
-        if(esp_ble_gattc_get_db(spp_gattc_if, spp_conn_id, spp_srv_start_handle, spp_srv_end_handle, db, &count) != ESP_GATT_OK){
-            break;
-        }
-        if(count != SPP_IDX_NB){
-            break;
-        }
-        cmd = SPP_IDX_SPP_DATA_NTY_VAL;
-        xQueueSend(cmd_reg_queue, &cmd, 10/portTICK_PERIOD_MS);
-        break;
-    case ESP_GATTC_SRVC_CHG_EVT:
-        break;
-    default:
-        break;
     }
 }
 
@@ -628,8 +481,7 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
  * @brief Callback function for handling Bluetooth Low Energy (BLE) GATT client (GATTC) events.
  *
  * This function is invoked in response to various BLE GATTC events. It logs event information,
- * handles registration events to associate the GATTC interface with each profile, and calls
- * the appropriate profile's callback function based on the GATTC interface and event type.
+ * processes different GATTC events, and performs corresponding actions based on the event type.
  *
  * @param event     The type of GATTC event.
  * @param gattc_if  The GATTC interface associated with the event.
@@ -637,52 +489,217 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
  */
 void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
 {
-    ESP_LOGI(GATTC_TAG, "EVT %d, gattc if %d", event, gattc_if);
+    esp_ble_gattc_cb_param_t *p_data = (esp_ble_gattc_cb_param_t *)param;
 
     switch (event)
     {
-    case :
-        break;
-    case :
-        break;
-    case :
-        break;
-    case :
-        break;
-    case :
-        break;
-    case :
-        break;
-    case :
-        break;
-    case :
-        break;    
-    default:
-        break;
-    }
-    /* If event is register event, store the gattc_if for each profile */
-    if (event == ESP_GATTC_REG_EVT) {
+    case ESP_GATTC_REG_EVT:
+        ESP_LOGI(GAP_TAG, "REG EVT, set scan params");
         if (param->reg.status == ESP_GATT_OK) {
             esp_if_pm = gattc_if;
-            gl_profile_tab[param->reg.app_id].gattc_if = gattc_if;
         } else {
             ESP_LOGI(GATTC_TAG, "Reg app failed, app_id %04x, status %d", param->reg.app_id, param->reg.status);
             return;
         }
-    }
-    /* If the gattc_if equal to profile A, call profile A cb handler,
-     * so here call each profile's callback */
-    do {
-        int idx;
-        for (idx = 0; idx < PROFILE_NUM; idx++) {
-            if (gattc_if == ESP_GATT_IF_NONE || /* ESP_GATT_IF_NONE, not specify a certain gatt_if, need to call every profile cb function */
-                    gattc_if == gl_profile_tab[idx].gattc_if) {
-                if (gl_profile_tab[idx].gattc_cb) {
-                    gl_profile_tab[idx].gattc_cb(event, gattc_if, param);
-                }
-            }
+        
+        esp_ble_gap_set_scan_params(&ble_scan_params);
+        break;
+    case ESP_GATTC_UNREG_EVT:
+        ESP_LOGI(GAP_TAG, "UNREG EVT");
+        break;
+    case ESP_GATTC_OPEN_EVT:
+        ESP_LOGI(GAP_TAG, "OPEN EVT");
+        break;
+    case ESP_GATTC_READ_CHAR_EVT:
+        ESP_LOGI(GAP_TAG,"ESP_GATTC_READ_CHAR_EVT");    
+        break;
+    case ESP_GATTC_WRITE_CHAR_EVT:
+        ESP_LOGI(GAP_TAG,"ESP_GATTC_WRITE_CHAR_EVT:status = %d,handle = %d", param->write.status, param->write.handle);
+        if(param->write.status != ESP_GATT_OK)
+        {
+            ESP_LOGE(GAP_TAG, "ESP_GATTC_WRITE_CHAR_EVT, error status = %d", p_data->write.status);
+            break;
         }
-    } while (0);
+        break;
+    case ESP_GATTC_CLOSE_EVT:
+        ESP_LOGI(GAP_TAG, "CLOSE EVT");
+        break;
+    case ESP_GATTC_SEARCH_CMPL_EVT:
+        ESP_LOGI(GAP_TAG, "SEARCH_CMPL: conn_id = %x, status %d", spp_conn_id, p_data->search_cmpl.status);
+        esp_ble_gattc_send_mtu_req(gattc_if, spp_conn_id);    
+        break;
+    case ESP_GATTC_SEARCH_RES_EVT:
+        ESP_LOGI(GAP_TAG, "ESP_GATTC_SEARCH_RES_EVT: start_handle = %d, end_handle = %d, UUID:0x%04x",p_data->search_res.start_handle,p_data->search_res.end_handle,p_data->search_res.srvc_id.uuid.uuid.uuid16);
+        spp_srv_start_handle = p_data->search_res.start_handle;
+        spp_srv_end_handle = p_data->search_res.end_handle;    
+        break;    
+    case ESP_GATTC_READ_DESCR_EVT:
+        ESP_LOGI(GAP_TAG, "READ DESCR EVT");
+        break;
+    case ESP_GATTC_WRITE_DESCR_EVT:
+        ESP_LOGI(GAP_TAG,"ESP_GATTC_WRITE_DESCR_EVT: status =%d,handle = %d", p_data->write.status, p_data->write.handle);
+        if(p_data->write.status != ESP_GATT_OK)
+        {
+            ESP_LOGE(GAP_TAG, "ESP_GATTC_WRITE_DESCR_EVT, error status = %d", p_data->write.status);
+            break;
+        }
+        switch(cmd)
+        {
+        case SPP_IDX_SPP_DATA_NTY_VAL:
+            ESP_LOGI(GAP_TAG, "DATA NTY VAL EVT");
+            cmd = SPP_IDX_SPP_STATUS_VAL;
+            xQueueSend(cmd_reg_queue, &cmd, 10 / portTICK_PERIOD_MS);
+            break;
+        case SPP_IDX_SPP_STATUS_VAL:
+            ESP_LOGI(GAP_TAG, "STATUS VAL EVT");
+            break;
+        default:
+            break;
+        };
+        break;
+    case ESP_GATTC_NOTIFY_EVT:
+        ESP_LOGI(GAP_TAG,"ESP_GATTC_NOTIFY_EVT");
+        notify_event_handler(p_data);
+        break;
+    case ESP_GATTC_PREP_WRITE_EVT:
+        ESP_LOGI(GAP_TAG, "PREP WRITE EVT");
+        break;
+    case ESP_GATTC_EXEC_EVT:
+        ESP_LOGI(GAP_TAG, "EXEC EVT");
+        break;
+    case ESP_GATTC_ACL_EVT:
+        ESP_LOGI(GAP_TAG, "ACL EVT");
+        break; 
+    case ESP_GATTC_CANCEL_OPEN_EVT:
+        ESP_LOGI(GAP_TAG, "CANCEL OPEN EVT");
+        break;
+    case ESP_GATTC_SRVC_CHG_EVT:
+        ESP_LOGI(GAP_TAG, "SRVC CHG EVT");
+        break;
+    case ESP_GATTC_ENC_CMPL_CB_EVT:
+        ESP_LOGI(GAP_TAG, "ENC CMPL CB EVT");
+        break;
+    case ESP_GATTC_CFG_MTU_EVT:
+        if(p_data->cfg_mtu.status != ESP_OK){
+            break;
+        }
+        ESP_LOGI(GAP_TAG,"+MTU:%d", p_data->cfg_mtu.mtu);
+        spp_mtu_size = p_data->cfg_mtu.mtu;
+
+        db = (esp_gattc_db_elem_t *)malloc(count*sizeof(esp_gattc_db_elem_t));
+        if(db == NULL){
+            break;
+        }
+        if(esp_ble_gattc_get_db(spp_gattc_if, spp_conn_id, spp_srv_start_handle, spp_srv_end_handle, db, &count) != ESP_GATT_OK){
+            break;
+        }
+        if(count != SPP_IDX_NB){
+            break;
+        }
+        cmd = SPP_IDX_SPP_DATA_NTY_VAL;
+        xQueueSend(cmd_reg_queue, &cmd, 10/portTICK_PERIOD_MS);
+        break;
+    case ESP_GATTC_ADV_DATA_EVT:
+    ESP_LOGI(GAP_TAG, "ADV DATA EVT");
+        break;
+    case ESP_GATTC_MULT_ADV_ENB_EVT:
+    ESP_LOGI(GAP_TAG, "MULT ADV ENB EVT");
+        break;    
+    case ESP_GATTC_MULT_ADV_UPD_EVT:
+    ESP_LOGI(GAP_TAG, "MULT ADV UPD EVT");
+        break;
+    case ESP_GATTC_MULT_ADV_DATA_EVT:
+        ESP_LOGI(GAP_TAG, "MULT ADV DATA EVT");
+        break;
+    case ESP_GATTC_MULT_ADV_DIS_EVT:
+        ESP_LOGI(GAP_TAG, "MULT ADV DIS EVT");
+        break;
+    case ESP_GATTC_CONGEST_EVT:
+        ESP_LOGI(GAP_TAG, "CONGEST EVT");
+        break;
+    case ESP_GATTC_BTH_SCAN_ENB_EVT:
+        ESP_LOGI(GAP_TAG, "BTH SCAN ENB EVT");
+        break;
+    case ESP_GATTC_BTH_SCAN_CFG_EVT:
+        ESP_LOGI(GAP_TAG, "BTH SCAN CFG EVT");
+        break; 
+    case ESP_GATTC_BTH_SCAN_RD_EVT:
+        ESP_LOGI(GAP_TAG, "BTH SCAN RD EVT");
+        break;
+    case ESP_GATTC_BTH_SCAN_THR_EVT:
+        ESP_LOGI(GAP_TAG, "BTH SCN THR EVT");
+        break;
+    case ESP_GATTC_BTH_SCAN_PARAM_EVT:
+        ESP_LOGI(GAP_TAG, "BTH SCAN PARAM EVT");
+        break;
+    case ESP_GATTC_BTH_SCAN_DIS_EVT:
+        ESP_LOGI(GAP_TAG, "BTH SCAN DIS EVT");
+        break;
+    case ESP_GATTC_SCAN_FLT_CFG_EVT:
+        ESP_LOGI(GAP_TAG, "SCAN FLT CFG EVT");
+        break;
+    case ESP_GATTC_SCAN_FLT_PARAM_EVT:
+        ESP_LOGI(GAP_TAG, "SCAN FLT PARAM EVT");
+        break;    
+    case ESP_GATTC_SCAN_FLT_STATUS_EVT:
+        ESP_LOGI(GAP_TAG, "SCAN FLT STATUS EVT");
+        break;
+    case ESP_GATTC_ADV_VSC_EVT:
+        ESP_LOGI(GAP_TAG, "ADV VSC EVT");
+        break;
+    case ESP_GATTC_REG_FOR_NOTIFY_EVT:
+        ESP_LOGI(GAP_TAG,"Index = %d,status = %d,handle = %d",cmd, p_data->reg_for_notify.status, p_data->reg_for_notify.handle);
+        if(p_data->reg_for_notify.status != ESP_GATT_OK){
+            ESP_LOGE(GAP_TAG, "ESP_GATTC_REG_FOR_NOTIFY_EVT, status = %d", p_data->reg_for_notify.status);
+            break;
+        }
+        uint16_t notify_en = 1;
+        esp_ble_gattc_write_char_descr(
+                spp_gattc_if,
+                spp_conn_id,
+                (db+cmd+1)->attribute_handle,
+                sizeof(notify_en),
+                (uint8_t *)&notify_en,
+                ESP_GATT_WRITE_TYPE_RSP,
+                ESP_GATT_AUTH_REQ_NONE);
+
+        break;
+    case ESP_GATTC_UNREG_FOR_NOTIFY_EVT:
+        ESP_LOGI(GAP_TAG, "UNREG FOR NOTIFY EVT");
+        break;
+    case ESP_GATTC_CONNECT_EVT:
+        ESP_LOGI(GAP_TAG, "ESP_GATTC_CONNECT_EVT: conn_id=%d, gatt_if = %d", spp_conn_id, gattc_if);
+        ESP_LOGI(GAP_TAG, "REMOTE BDA:");
+        esp_log_buffer_hex(GAP_TAG, address_pm, sizeof(esp_bd_addr_t));
+        spp_gattc_if = gattc_if;
+        is_con = true;
+        spp_conn_id = p_data->connect.conn_id;
+        memcpy(&address_pm, p_data->connect.remote_bda, sizeof(esp_bd_addr_t));
+        esp_ble_gattc_search_service(spp_gattc_if, spp_conn_id, &spp_service_uuid);    
+        break;
+    case ESP_GATTC_DISCONNECT_EVT:
+        ESP_LOGI(GAP_TAG, "disconnect");
+        free_gattc_srv_db();
+        esp_ble_gap_start_scanning(SCAN_ALL_THE_TIME);    
+        break; 
+    case ESP_GATTC_READ_MULTIPLE_EVT:
+        ESP_LOGI(GAP_TAG, "READ MULTIPLE EVT");
+        break;
+    case ESP_GATTC_QUEUE_FULL_EVT:
+        ESP_LOGI(GAP_TAG, "QUEUE FULL EVT");
+        break;
+    case ESP_GATTC_SET_ASSOC_EVT:
+        ESP_LOGI(GAP_TAG, "SET ASSOC EVT");
+        break;
+    case ESP_GATTC_GET_ADDR_LIST_EVT:
+        ESP_LOGI(GAP_TAG, "GET ADDR LIST EVT");
+        break;
+    case ESP_GATTC_DIS_SRVC_CMPL_EVT:
+        ESP_LOGI(GAP_TAG, "DIS SRVC CMPL EVT");
+        break;
+    default:
+        break;
+    }
 }
 
 /**
